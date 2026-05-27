@@ -1,0 +1,13 @@
+version = 1
+agents = ["claude", "codex"]
+
+[trust]
+github_repos = ["getsentry/skills", "getsentry/dotagents"]
+
+[[skills]]
+name = "dotagents"
+source = "getsentry/dotagents"
+
+[[skills]]
+name = "skill-writer"
+source = "getsentry/skills"
