@@ -83,6 +83,7 @@ Data that must not be stored:
 
 ## Known Limitations
 
+- PR-author comments are surfaced (tagged `self_authored: true`), not skipped. The script cannot reliably distinguish an author's change request from context written for reviewers, so it includes both and the invoking agent judges actionability per comment.
 - Human-gate detection depends on check names, states, and descriptions exposed by GitHub or CI integrations.
 - Some repositories may intentionally model deployment or approval workflows as status checks; this skill reports those as blocked/non-actionable unless the user asks to manage that gate.
 - The helper scripts use GitHub CLI output and can drift if `gh pr checks` changes its JSON schema.

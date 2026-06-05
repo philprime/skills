@@ -59,6 +59,7 @@ uv run scripts/fetch_pr_checks.py [--pr NUMBER]
    - fix all instances
    - treat `review_bot: true` as actionable when the issue is real
    - explain false positives instead of changing code
+   - `self_authored: true` marks a comment the PR author left on their own PR. These are included, not skipped. Judge each one: many are change requests the author flagged for the implementer (often with an `h:`/`m:`/`l:` marker) and are actionable; some are only context written for reviewers. Address the actionable ones and briefly note any you are treating as informational rather than acting on.
 
 Ask the user before addressing low-priority suggestions.
 

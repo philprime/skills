@@ -25,6 +25,13 @@ Bot classification:
   NOT placed in the ``bot`` bucket.
 - Info bots (Codecov, Dependabot, Renovate, etc.) post status reports and are
   placed in the ``bot`` bucket for silent skipping.
+
+Self-authored comments:
+- Comments written by the PR author are INCLUDED (not skipped) and tagged with
+  ``self_authored: true``. Authors routinely annotate their own PRs — both with
+  spots that still need work and with context for reviewers — so this script
+  surfaces them and leaves the actionable-vs-informational judgment to the
+  coding agent invoking the skill.
 """
 from __future__ import annotations
 
@@ -275,6 +282,7 @@ def extract_feedback_item(
     is_outdated: bool = False,
     review_bot: bool = False,
     thread_id: str | None = None,
+    self_authored: bool = False,
 ) -> dict[str, Any]:
     """Create a standardized feedback item."""
     # Truncate long bodies for summary
@@ -301,6 +309,8 @@ def extract_feedback_item(
         item['review_bot'] = True
     if thread_id:
         item['thread_id'] = thread_id
+    if self_authored:
+        item['self_authored'] = True
 
     return item
 
@@ -361,9 +371,10 @@ def main():
         author = first_comment.get('author', {}).get('login', '')
         body = first_comment.get('body', '')
 
-        # Skip if author is PR author (self-comments)
-        if author == pr_author:
-            continue
+        # Include the PR author's own comments too. Authors annotate their own
+        # PRs with spots that still need work, and dropping them silently loses
+        # real feedback. Such comments are tagged ``self_authored`` so the
+        # invoking agent can judge whether each is actionable or just context.
 
         # Skip empty or very short comments
         if not body or len(body.strip()) < 3:
@@ -381,6 +392,7 @@ def main():
             is_resolved=is_resolved,
             is_outdated=is_outdated,
             thread_id=thread_id,
+            self_authored=(author == pr_author),
         )
 
         if thread_id:
@@ -405,9 +417,8 @@ def main():
         author = comment.get('user', {}).get('login', '')
         body = comment.get('body', '')
 
-        # Skip if author is PR author
-        if author == pr_author:
-            continue
+        # Include the PR author's own conversation comments too (tagged
+        # ``self_authored``); the invoking agent decides if each is actionable.
 
         # Skip empty comments
         if not body or len(body.strip()) < 3:
@@ -417,6 +428,7 @@ def main():
             body=body,
             author=author,
             url=comment.get('html_url'),
+            self_authored=(author == pr_author),
         )
 
         if is_review_bot(author):
