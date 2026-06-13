@@ -11,7 +11,7 @@ Requires authenticated `gh`, `uv`, and the target repository root as cwd.
 
 ## Scripts
 
-Run scripts from `skills/iterate-pr/` or use equivalent skill-root-relative paths.
+The working directory is the target repository root, not this skill directory. Always invoke scripts by their full path from the working directory (e.g. `uv run /abs/path/to/skills/iterate-pr/scripts/fetch_pr_checks.py`); do not `cd` into the skill directory or rely on skill-root-relative paths. Substitute the absolute skill path for `<skill>/` in the commands below.
 
 | Script                           | Purpose                                             |
 | -------------------------------- | --------------------------------------------------- |
@@ -49,8 +49,8 @@ Stop when no PR exists. For draft PRs with no checks, inspect current feedback b
 2. Fetch initial state:
 
 ```bash
-uv run scripts/fetch_pr_feedback.py [--pr NUMBER]
-uv run scripts/fetch_pr_checks.py [--pr NUMBER]
+uv run <skill>/scripts/fetch_pr_feedback.py [--pr NUMBER]
+uv run <skill>/scripts/fetch_pr_checks.py [--pr NUMBER]
 ```
 
 3. Fix current high/medium feedback first:
@@ -80,8 +80,8 @@ git push
 6. Start both monitors after every push:
 
 ```bash
-uv run scripts/monitor_pr_checks.py [--pr NUMBER]
-uv run scripts/monitor_pr_feedback.py [--pr NUMBER]
+uv run <skill>/scripts/monitor_pr_checks.py [--pr NUMBER]
+uv run <skill>/scripts/monitor_pr_feedback.py [--pr NUMBER]
 ```
 
 Run them as parallel background tasks. Feedback usually arrives before checks finish; when `monitor_pr_feedback.py` returns `FEEDBACK_NEEDS_ATTENTION`, fix that feedback immediately, verify, commit, push, and restart both monitors.
