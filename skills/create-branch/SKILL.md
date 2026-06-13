@@ -37,23 +37,28 @@ git status --short
 | `style`   | formatting only                  |
 | `meta`    | repository metadata              |
 | `license` | license changes                  |
+| `revert`  | reverting a prior commit         |
 
 When unsure, use `feat` for new behavior, `fix` for broken behavior, `ref` for restructuring, and `chore` for maintenance.
 
-4. Generate `<type>/<short-description>`:
-   - kebab-case
+4. Resolve the GitHub username:
+   - Run `gh api user --jq .login` to get the authoritative GitHub login (for example `philprime`).
+   - Use the full login exactly; never shorten it or derive a name from git config or email.
+   - If `gh` is unavailable or unauthenticated, ask the user for their GitHub username before continuing.
+5. Generate `<github-username>/<type>/<short-description>`:
+   - kebab-case for `<type>` and `<short-description>`
    - ASCII only
-   - ideally 3 to 6 words
+   - description ideally 3 to 6 words
    - no agent, tool, or AI names
-5. Choose the base:
+6. Choose the base:
    - If on a normal branch, create from the current branch.
    - If on a detached HEAD, create from the current commit.
    - Do not switch branches before creating the new branch unless the user asks.
-6. Avoid collisions:
+7. Avoid collisions:
    - Check local branches.
    - Check remote branches when a remote exists.
    - Append `-2`, `-3`, and so on until the name is unused.
-7. Create and switch to the branch:
+8. Create and switch to the branch:
 
 ```bash
 git switch -c <branch-name>
@@ -63,9 +68,11 @@ Report the final branch name.
 
 ## Examples
 
-| Work description              | Branch name                       |
-| ----------------------------- | --------------------------------- |
-| update commit skill           | `docs/update-commit-skill`        |
-| fix null response in API      | `fix/handle-null-api-response`    |
-| refactor auth middleware      | `ref/refactor-auth-middleware`    |
-| add GitHub Actions formatting | `ci/add-formatting-github-action` |
+Branch names below assume the GitHub login `philprime`.
+
+| Work description              | Branch name                                 |
+| ----------------------------- | ------------------------------------------- |
+| update commit skill           | `philprime/docs/update-commit-skill`        |
+| fix null response in API      | `philprime/fix/handle-null-api-response`    |
+| refactor auth middleware      | `philprime/ref/refactor-auth-middleware`    |
+| add GitHub Actions formatting | `philprime/ci/add-formatting-github-action` |

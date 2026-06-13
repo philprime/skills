@@ -16,7 +16,7 @@ git branch --show-current
 git status --short
 ```
 
-2. If on `main` or `master`, create a feature branch unless the user explicitly asked to commit there.
+2. If on `main` or `master`, create a feature branch (use the `create-branch` skill) unless the user explicitly asked to commit there.
 3. Inspect the diff before staging or committing.
 4. Stage only intended files; do not use `git add .` unless the user explicitly wants every change included.
 5. Choose the commit type and scope from the staged diff.
