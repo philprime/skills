@@ -76,7 +76,6 @@ Data that must not be stored:
 
 ## Validation
 
-- Lightweight validation: run `uv run .agents/skills/skill-writer/scripts/quick_validate.py skills/iterate-pr`.
 - Script validation: run `uv run -m py_compile skills/iterate-pr/scripts/*.py` after script changes.
 - Holdout examples: include a draft PR with no registered checks, a PR with `reviewDecision: REVIEW_REQUIRED` but passing checks, a PR with actionable pending CI, a PR with failed CI logs, and a PR where feedback arrives before checks finish.
 - Acceptance gates: validator passes, scripts compile, draft/no-check states terminate with a report, human review gates are not treated as actionable pending CI, feedback monitor exits when high/medium feedback appears, and pushed fixes restart both monitors.

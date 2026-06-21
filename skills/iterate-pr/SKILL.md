@@ -21,6 +21,16 @@ The working directory is the target repository root, not this skill directory. A
 | `scripts/monitor_pr_feedback.py` | quiet feedback monitor; exits when feedback appears |
 | `scripts/reply_to_thread.py`     | reply to review threads                             |
 
+`reply_to_thread.py` takes one or more **alternating `THREAD_ID BODY` positional pairs** — not flags:
+
+```bash
+uv run <skill>/scripts/reply_to_thread.py THREAD_ID "reply body" [THREAD_ID "reply body" ...]
+```
+
+- `THREAD_ID` is the GraphQL node id (e.g. `PRRT_...`) from the `thread_id` field of `fetch_pr_feedback.py` output, not the numeric comment id.
+- Quote each body; `\n` in a body becomes a real newline.
+- Batch every reply for one push into a single call — all pairs go in one GraphQL mutation, and each thread's success is reported independently.
+
 Check monitor markers:
 
 - `ALL_CHECKS_PASSED`
