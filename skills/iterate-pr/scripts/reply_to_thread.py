@@ -6,14 +6,14 @@
 Reply to PR review threads.
 
 Usage:
-    uv run reply_to_thread.py THREAD_ID BODY [THREAD_ID BODY ...]
+    uv run reply_to_thread.py --reply THREAD_ID BODY [--reply THREAD_ID BODY ...]
 
-Accepts one or more (thread_id, body) pairs as positional arguments.
-Batches all replies into a single GraphQL mutation for efficiency.
+Each --reply takes a thread node id and a reply body. Pass the flag once per
+thread; all replies batch into a single GraphQL mutation for efficiency.
 
 Example:
-    uv run reply_to_thread.py PRRT_abc "Fixed the issue."
-    uv run reply_to_thread.py PRRT_abc "Fixed." PRRT_def "Also fixed."
+    uv run reply_to_thread.py --reply PRRT_abc "Fixed the issue."
+    uv run reply_to_thread.py --reply PRRT_abc "Fixed." --reply PRRT_def "Also fixed."
 """
 
 from __future__ import annotations
@@ -101,22 +101,18 @@ def reply_to_threads(pairs: list[tuple[str, str]]) -> list[tuple[str, bool]]:
 def main():
     parser = argparse.ArgumentParser(
         description='Reply to PR review threads',
-        usage='%(prog)s THREAD_ID BODY [THREAD_ID BODY ...]',
     )
     parser.add_argument(
-        'args',
-        nargs='+',
-        help='Alternating thread_id and body pairs',
+        '--reply',
+        action='append',
+        nargs=2,
+        metavar=('THREAD_ID', 'BODY'),
+        required=True,
+        help='A review thread node id and the reply body; repeatable',
     )
     parsed = parser.parse_args()
 
-    if len(parsed.args) % 2 != 0:
-        print('Error: arguments must be (thread_id, body) pairs', file=sys.stderr)
-        sys.exit(1)
-
-    pairs = []
-    for i in range(0, len(parsed.args), 2):
-        pairs.append((parsed.args[i], parsed.args[i + 1]))
+    pairs = [(thread_id, body) for thread_id, body in parsed.reply]
 
     results = reply_to_threads(pairs)
 
