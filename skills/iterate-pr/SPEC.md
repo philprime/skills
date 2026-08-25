@@ -17,7 +17,7 @@ In scope:
 - Fetching CI checks, failed logs, and failure snippets.
 - Fixing CI failures with local verification before pushing.
 - Monitoring checks until they pass, fail, or reach a non-actionable stop state.
-- Monitoring feedback in parallel with checks after each push.
+- Monitoring feedback in parallel with checks after each push until feedback appears or registered actionable checks finish.
 - Restarting both monitors after each feedback or CI fix is pushed.
 - Reporting draft/no-checks and human review/approval gates without polling forever.
 
@@ -39,7 +39,7 @@ Out of scope:
 
 - Required first actions: resolve the current PR, read `isDraft` and `reviewDecision`, fetch current review feedback, and fetch current CI state before editing.
 - Required outputs: concise progress updates, commits and pushes when fixes are made, and a final state that distinguishes passing CI from non-actionable review/draft/approval gates.
-- Non-negotiable constraints: investigate failures before editing, verify locally before pushing, do not push known-broken fixes, run check and feedback monitors in parallel after each push, restart both monitors after each pushed fix, do not wait for human approval, and do not treat draft PRs with no checks as pending forever.
+- Non-negotiable constraints: investigate failures before editing, verify locally before pushing, do not push known-broken fixes, run check and feedback monitors in parallel after each push, restart both monitors after each pushed fix, stop the feedback monitor after a final clear fetch when registered actionable checks finish, do not wait for human approval, and do not treat draft PRs with no checks as pending forever.
 - Expected bundled files loaded at runtime: `SKILL.md` and, when needed, scripts under `scripts/`.
 
 ## Source And Evidence Model
@@ -76,15 +76,16 @@ Data that must not be stored:
 
 ## Validation
 
-- Script validation: run `uv run -m py_compile skills/iterate-pr/scripts/*.py` after script changes.
+- Script validation: run `uv run -m py_compile skills/iterate-pr/scripts/*.py` and `uv run skills/iterate-pr/scripts/monitor_pr_feedback_test.py` after feedback monitor changes.
 - Holdout examples: include a draft PR with no registered checks, a PR with `reviewDecision: REVIEW_REQUIRED` but passing checks, a PR with actionable pending CI, a PR with failed CI logs, and a PR where feedback arrives before checks finish.
-- Acceptance gates: validator passes, scripts compile, draft/no-check states terminate with a report, human review gates are not treated as actionable pending CI, feedback monitor exits when high/medium feedback appears, and pushed fixes restart both monitors.
+- Acceptance gates: validator passes, scripts compile, draft/no-check states terminate with a report, human review gates are not treated as actionable pending CI, feedback monitor exits when high/medium feedback appears, feedback monitor performs a final clear fetch and exits when registered actionable checks finish, and pushed fixes restart both monitors.
 
 ## Known Limitations
 
 - PR-author comments are surfaced (tagged `self_authored: true`), not skipped. The script cannot reliably distinguish an author's change request from context written for reviewers, so it includes both and the invoking agent judges actionability per comment.
 - Human-gate detection depends on check names, states, and descriptions exposed by GitHub or CI integrations.
 - Some repositories may intentionally model deployment or approval workflows as status checks; this skill reports those as blocked/non-actionable unless the user asks to manage that gate.
+- The feedback monitor stops after its final clear fetch once registered actionable checks finish; review comments posted later are outside the iteration window.
 - The helper scripts use GitHub CLI output and can drift if `gh pr checks` changes its JSON schema.
 
 ## Maintenance Notes

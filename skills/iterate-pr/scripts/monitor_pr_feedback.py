@@ -3,7 +3,7 @@
 # requires-python = ">=3.9"
 # ///
 """
-Monitor PR feedback until actionable feedback appears or the timeout expires.
+Monitor PR feedback until feedback appears, registered checks finish, or timeout.
 
 Usage:
     uv run monitor_pr_feedback.py [--pr PR_NUMBER]
@@ -11,7 +11,7 @@ Usage:
 Output markers:
     FEEDBACK_NEEDS_ATTENTION   high or medium feedback exists
     LOW_PRIORITY_FEEDBACK      only low-priority feedback exists
-    NO_ACTIONABLE_FEEDBACK     timeout reached without high/medium/low feedback
+    NO_ACTIONABLE_FEEDBACK     checks finished or timeout reached without feedback
     FEEDBACK_MONITOR_ERROR     feedback could not be fetched
 
 The script stays quiet while polling so background monitors do not emit
@@ -29,8 +29,8 @@ from pathlib import Path
 from typing import Any
 
 
-def fetch_feedback(pr_number: int | None) -> dict[str, Any] | None:
-    script = Path(__file__).with_name('fetch_pr_feedback.py')
+def fetch_script_output(script_name: str, pr_number: int | None) -> dict[str, Any] | None:
+    script = Path(__file__).with_name(script_name)
     args = [sys.executable, str(script)]
     if pr_number is not None:
         args.extend(['--pr', str(pr_number)])
@@ -48,6 +48,24 @@ def fetch_feedback(pr_number: int | None) -> dict[str, Any] | None:
     except json.JSONDecodeError:
         return None
     return parsed if isinstance(parsed, dict) else None
+
+
+def fetch_feedback(pr_number: int | None) -> dict[str, Any] | None:
+    return fetch_script_output('fetch_pr_feedback.py', pr_number)
+
+
+def fetch_checks(pr_number: int | None) -> dict[str, Any] | None:
+    return fetch_script_output('fetch_pr_checks.py', pr_number)
+
+
+def registered_checks_are_terminal(checks: dict[str, Any] | None) -> bool:
+    if checks is None or checks.get('error'):
+        return False
+
+    summary = checks.get('summary') or {}
+    total = int(summary.get('total') or 0)
+    actionable_pending = int(summary.get('actionable_pending') or 0)
+    return total > 0 and actionable_pending == 0
 
 
 def print_feedback(marker: str, feedback: dict[str, Any] | None) -> None:
@@ -94,6 +112,10 @@ def main() -> int:
             return 0
         if low:
             print_feedback('LOW_PRIORITY_FEEDBACK', feedback)
+            return 0
+
+        if registered_checks_are_terminal(fetch_checks(args.pr)):
+            print_feedback('NO_ACTIONABLE_FEEDBACK', feedback)
             return 0
 
         if time.monotonic() - started_at >= args.timeout_seconds:

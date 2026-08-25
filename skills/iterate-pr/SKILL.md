@@ -13,13 +13,13 @@ Requires authenticated `gh`, `uv`, and the target repository root as cwd.
 
 The working directory is the target repository root, not this skill directory. Always invoke scripts by their full path from the working directory (e.g. `uv run /abs/path/to/skills/iterate-pr/scripts/fetch_pr_checks.py`); do not `cd` into the skill directory or rely on skill-root-relative paths. Substitute the absolute skill path for `<skill>/` in the commands below.
 
-| Script                           | Purpose                                             |
-| -------------------------------- | --------------------------------------------------- |
-| `scripts/fetch_pr_checks.py`     | fetch checks, summaries, and failure snippets       |
-| `scripts/fetch_pr_feedback.py`   | fetch categorized feedback                          |
-| `scripts/monitor_pr_checks.py`   | quiet check monitor; exits on pass/fail/block/no CI |
-| `scripts/monitor_pr_feedback.py` | quiet feedback monitor; exits when feedback appears |
-| `scripts/reply_to_thread.py`     | reply to review threads                             |
+| Script                           | Purpose                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------ |
+| `scripts/fetch_pr_checks.py`     | fetch checks, summaries, and failure snippets                                              |
+| `scripts/fetch_pr_feedback.py`   | fetch categorized feedback                                                                 |
+| `scripts/monitor_pr_checks.py`   | quiet check monitor; exits on pass/fail/block/no CI                                        |
+| `scripts/monitor_pr_feedback.py` | quiet feedback monitor; exits when feedback appears or registered actionable checks finish |
+| `scripts/reply_to_thread.py`     | reply to review threads                                                                    |
 
 `reply_to_thread.py` takes one repeatable `--reply THREAD_ID BODY` flag:
 
@@ -94,21 +94,21 @@ uv run <skill>/scripts/monitor_pr_checks.py [--pr NUMBER]
 uv run <skill>/scripts/monitor_pr_feedback.py [--pr NUMBER]
 ```
 
-Run them as parallel background tasks. Feedback usually arrives before checks finish; when `monitor_pr_feedback.py` returns `FEEDBACK_NEEDS_ATTENTION`, fix that feedback immediately, verify, commit, push, and restart both monitors.
+Run them as parallel background tasks. Feedback usually arrives before checks finish; when `monitor_pr_feedback.py` returns `FEEDBACK_NEEDS_ATTENTION`, fix that feedback immediately, verify, commit, push, and restart both monitors. When registered checks become terminal or only human gates remain, the feedback monitor performs its final fetch and returns `NO_ACTIONABLE_FEEDBACK` instead of waiting for its timeout.
 
 7. Handle monitor results:
 
-| Result                          | Action                                                           |
-| ------------------------------- | ---------------------------------------------------------------- |
-| `FEEDBACK_NEEDS_ATTENTION`      | fix high/medium feedback, push, restart both monitors            |
-| `LOW_PRIORITY_FEEDBACK`         | ask user which suggestions to address                            |
-| `CHECKS_DONE_WITH_FAILURES`     | fetch failed checks/logs, fix, push, restart both monitors       |
-| `ALL_CHECKS_PASSED`             | wait for feedback monitor result or run one final feedback fetch |
-| `NO_ACTIONABLE_FEEDBACK`        | success if checks passed                                         |
-| `CHECKS_BLOCKED_BY_REVIEW_GATE` | stop and report human review/approval gate                       |
-| `NO_CHECKS_REGISTERED`          | stop and report no CI registered                                 |
-| `DRAFT_PR_WITH_NO_CHECKS`       | stop and report draft/no-check state                             |
-| `FEEDBACK_MONITOR_ERROR`        | fall back to `fetch_pr_feedback.py`; ask user if still unclear   |
+| Result                          | Action                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------- |
+| `FEEDBACK_NEEDS_ATTENTION`      | fix high/medium feedback, push, restart both monitors                                       |
+| `LOW_PRIORITY_FEEDBACK`         | ask user which suggestions to address                                                       |
+| `CHECKS_DONE_WITH_FAILURES`     | fetch failed checks/logs, fix, push, restart both monitors                                  |
+| `ALL_CHECKS_PASSED`             | consume the feedback monitor result; run a final feedback fetch only if that monitor failed |
+| `NO_ACTIONABLE_FEEDBACK`        | success if checks passed                                                                    |
+| `CHECKS_BLOCKED_BY_REVIEW_GATE` | stop and report human review/approval gate                                                  |
+| `NO_CHECKS_REGISTERED`          | stop and report no CI registered                                                            |
+| `DRAFT_PR_WITH_NO_CHECKS`       | stop and report draft/no-check state                                                        |
+| `FEEDBACK_MONITOR_ERROR`        | fall back to `fetch_pr_feedback.py`; ask user if still unclear                              |
 
 ## Exit Conditions
 
