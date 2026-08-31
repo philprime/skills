@@ -2,6 +2,13 @@
 
 ## Iteration Changelog
 
+### Narrow GitHub API wrappers
+
+- **Evidence:** Local permission rules need to distinguish fixed read and reply operations from unrestricted `gh api` access.
+- **Negative example:** Allow-listing the generic `gh api` command permits both reads and arbitrary writes, while Python helpers obscure otherwise standard `gh` operations.
+- **Behavior delta:** Standard PR checks and run logs use direct `gh` commands. Each required GraphQL query or mutation lives in a narrow shell wrapper that can be allow-listed independently.
+- **Preserved behavior:** Feedback remains categorized, checks and feedback are monitored in parallel, human gates terminate monitoring, and review-thread replies remain available after explicit confirmation.
+
 ### Feedback monitor completion
 
 - **Evidence:** Human-verified regression from an `iterate-pr` run.

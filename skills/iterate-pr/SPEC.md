@@ -40,7 +40,9 @@ Out of scope:
 - Required first actions: resolve the current PR, read `isDraft` and `reviewDecision`, fetch current review feedback, and fetch current CI state before editing.
 - Required outputs: concise progress updates, commits and pushes when fixes are made, and a final state that distinguishes passing CI from non-actionable review/draft/approval gates.
 - Non-negotiable constraints: investigate failures before editing, verify locally before pushing, do not push known-broken fixes, run check and feedback monitors in parallel after each push, restart both monitors after each pushed fix, stop the feedback monitor after a final clear fetch when registered actionable checks finish, do not wait for human approval, and do not treat draft PRs with no checks as pending forever.
-- Expected bundled files loaded at runtime: `SKILL.md` and, when needed, scripts under `scripts/`.
+- Permission boundary: use direct `gh pr` and `gh run` commands for their read-only operations. Put every required GraphQL operation behind a fixed-purpose wrapper so allow-listing a workflow never requires allow-listing generic `gh api` access.
+- External writes: require explicit confirmation before invoking the review-thread reply wrapper.
+- Expected bundled files loaded at runtime: `SKILL.md` and, when needed, fixed-operation shell wrappers under `scripts/`.
 
 ## Source And Evidence Model
 
@@ -49,7 +51,7 @@ Authoritative sources:
 - GitHub CLI PR and checks output.
 - Priority markers in review comments, including high/medium/low prefixes.
 - Repository-level agent instructions.
-- Bundled script behavior documented in `SKILL.md`.
+- Bundled shell-wrapper behavior documented in `SKILL.md`.
 
 Useful improvement sources:
 
@@ -71,14 +73,17 @@ Data that must not be stored:
 - `SPEC.md` contains this maintenance contract.
 - `references/` contains no files currently; add focused troubleshooting or evidence references only if runtime guidance becomes noisy.
 - `references/evidence/` contains no files currently; use it for durable positive or negative PR-loop examples if regressions recur.
-- `scripts/` contains non-interactive helpers for PR checks, PR feedback, check monitoring, feedback monitoring, and review-thread replies.
+- `scripts/fetch-pr-feedback.sh` contains the fixed read-only GraphQL query and feedback categorization.
+- `scripts/monitor-pr-feedback.sh` polls feedback while direct `gh pr checks --watch` monitors CI.
+- `scripts/reply-to-feedback.sh` contains the fixed review-thread reply mutation.
+- `tests/iterate-pr.test.sh` validates wrapper contracts with a stubbed `gh` executable.
 - `assets/` contains no files currently.
 
 ## Validation
 
-- Script validation: run `uv run -m py_compile skills/iterate-pr/scripts/*.py` and `uv run skills/iterate-pr/scripts/monitor_pr_feedback_test.py` after feedback monitor changes.
+- Validation: run `make validate SKILL=iterate-pr` for structural validation and `make test` for wrapper contract tests. Run `make lint` to apply the complete pre-commit suite, including ShellCheck for tracked shell scripts.
 - Holdout examples: include a draft PR with no registered checks, a PR with `reviewDecision: REVIEW_REQUIRED` but passing checks, a PR with actionable pending CI, a PR with failed CI logs, and a PR where feedback arrives before checks finish.
-- Acceptance gates: validator passes, scripts compile, draft/no-check states terminate with a report, human review gates are not treated as actionable pending CI, feedback monitor exits when high/medium feedback appears, feedback monitor performs a final clear fetch and exits when registered actionable checks finish, and pushed fixes restart both monitors.
+- Acceptance gates: validator passes, shell syntax and contract tests pass, wrappers expose only their documented GraphQL operation, draft/no-check states terminate with a report, human review gates are not treated as actionable pending CI, feedback monitoring exits when high/medium feedback appears, feedback monitoring performs a final clear fetch and exits when registered actionable checks finish, and pushed fixes restart both monitors.
 
 ## Known Limitations
 
@@ -86,10 +91,12 @@ Data that must not be stored:
 - Human-gate detection depends on check names, states, and descriptions exposed by GitHub or CI integrations.
 - Some repositories may intentionally model deployment or approval workflows as status checks; this skill reports those as blocked/non-actionable unless the user asks to manage that gate.
 - The feedback monitor stops after its final clear fetch once registered actionable checks finish; review comments posted later are outside the iteration window.
-- The helper scripts use GitHub CLI output and can drift if `gh pr checks` changes its JSON schema.
+- The feedback query requests the first 100 reviews, review threads, comments per thread, and conversation comments. Larger PRs require pagination support.
+- The shell wrappers use GitHub CLI and `jq` output and can drift if GitHub changes its GraphQL schema or `gh pr checks` changes its JSON schema.
 
 ## Maintenance Notes
 
-- Update `SKILL.md` when the runtime loop, script contracts, feedback policy, monitor behavior, or exit conditions change.
-- Update `SPEC.md` when the skill's scope, validation expectations, or non-actionable gate policy changes.
+- Update `SKILL.md` when the runtime loop, wrapper contracts, feedback policy, monitor behavior, or exit conditions change.
+- Update `SPEC.md` when the skill's scope, permission boundary, validation expectations, or non-actionable gate policy changes.
+- Keep GraphQL queries and mutations inside fixed-purpose wrappers. Do not add a generic API passthrough.
 - Add focused reference files only when repeated troubleshooting guidance would make `SKILL.md` hard to scan.

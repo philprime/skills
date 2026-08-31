@@ -7,37 +7,24 @@ description: Iterate on an existing pull request until actionable feedback is ha
 
 Fix actionable PR feedback and CI failures. Do not wait on human approval, draft readiness, merge gates, or informational bots.
 
-Requires authenticated `gh`, `uv`, and the target repository root as cwd.
+Require authenticated `gh` and `jq`. Run from the target repository root.
 
-## Scripts
+## Commands
 
-The working directory is the target repository root, not this skill directory. Always invoke scripts by their full path from the working directory (e.g. `uv run /abs/path/to/skills/iterate-pr/scripts/fetch_pr_checks.py`); do not `cd` into the skill directory or rely on skill-root-relative paths. Substitute the absolute skill path for `<skill>/` in the commands below.
+Use standard read-only `gh` commands directly. Use the fixed-operation wrappers for GraphQL reads and writes so permission rules can allow-list each wrapper without allowing generic `gh api` access.
 
-| Script                           | Purpose                                                                                    |
-| -------------------------------- | ------------------------------------------------------------------------------------------ |
-| `scripts/fetch_pr_checks.py`     | fetch checks, summaries, and failure snippets                                              |
-| `scripts/fetch_pr_feedback.py`   | fetch categorized feedback                                                                 |
-| `scripts/monitor_pr_checks.py`   | quiet check monitor; exits on pass/fail/block/no CI                                        |
-| `scripts/monitor_pr_feedback.py` | quiet feedback monitor; exits when feedback appears or registered actionable checks finish |
-| `scripts/reply_to_thread.py`     | reply to review threads                                                                    |
+Always invoke wrappers by their absolute paths. Substitute the absolute skill path for `<skill>` below.
 
-`reply_to_thread.py` takes one repeatable `--reply THREAD_ID BODY` flag:
+| Command                                            | Operation                                                                                  |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `scripts/fetch-pr-feedback.sh`                     | fixed read-only GraphQL query that fetches and categorizes feedback                        |
+| `scripts/monitor-pr-feedback.sh`                   | polls the fixed feedback query and exits when feedback appears or actionable checks finish |
+| `scripts/reply-to-feedback.sh THREAD_ID BODY_FILE` | fixed GraphQL mutation that posts one review-thread reply                                  |
+| `gh pr checks NUMBER --json ...`                   | reads checks                                                                               |
+| `gh pr checks NUMBER --watch --fail-fast`          | watches checks                                                                             |
+| `gh run view RUN_ID --log-failed`                  | reads failed logs                                                                          |
 
-```bash
-uv run <skill>/scripts/reply_to_thread.py --reply THREAD_ID "reply body" [--reply THREAD_ID "reply body" ...]
-```
-
-- `THREAD_ID` is the GraphQL node id (e.g. `PRRT_...`) from the `thread_id` field of `fetch_pr_feedback.py` output, not the numeric comment id.
-- Quote each body; `\n` in a body becomes a real newline.
-- Pass `--reply` once per thread; all replies batch into one GraphQL mutation, and each thread's success is reported independently.
-
-Check monitor markers:
-
-- `ALL_CHECKS_PASSED`
-- `CHECKS_DONE_WITH_FAILURES`
-- `NO_CHECKS_REGISTERED`
-- `DRAFT_PR_WITH_NO_CHECKS`
-- `CHECKS_BLOCKED_BY_REVIEW_GATE`
+`reply-to-feedback.sh` is externally visible and writes to GitHub. Get explicit user confirmation immediately before invoking it. Put the reply in a file and pass the file path. Do not pass Markdown inline through the shell.
 
 Feedback monitor markers:
 
@@ -56,73 +43,89 @@ gh pr view --json number,url,headRefName,isDraft,reviewDecision
 
 Stop when no PR exists. For draft PRs with no checks, inspect current feedback but do not wait forever or mark ready unless asked.
 
-2. Fetch initial state:
+2. Fetch initial feedback and checks:
 
 ```bash
-uv run <skill>/scripts/fetch_pr_feedback.py [--pr NUMBER]
-uv run <skill>/scripts/fetch_pr_checks.py [--pr NUMBER]
+<skill>/scripts/fetch-pr-feedback.sh [--pr NUMBER]
+gh pr checks NUMBER --json name,bucket,state,description,workflow,link
 ```
 
-3. Fix current high/medium feedback first:
-   - verify root cause
+`gh pr checks` exits with status 8 while checks are pending and can exit nonzero for failures. Inspect its JSON output instead of treating those statuses as command errors.
+
+3. Fix current high and medium feedback first:
+   - verify the root cause
    - search related code
    - fix all instances
    - treat `review_bot: true` as actionable when the issue is real
    - explain false positives instead of changing code
-   - `self_authored: true` marks a comment the PR author left on their own PR. These are included, not skipped. Judge each one: many are change requests the author flagged for the implementer (often with an `h:`/`m:`/`l:` marker) and are actionable; some are only context written for reviewers. Address the actionable ones and briefly note any you are treating as informational rather than acting on.
+   - judge each `self_authored: true` item because PR-author comments can be either change requests or reviewer context
 
 Ask the user before addressing low-priority suggestions.
 
 4. Fix current failed checks:
-   - read full failed logs with `gh run view <run-id> --log-failed`
-   - state the failure cause before editing
-   - fix root cause, not symptoms
-   - add focused tests when needed
+   - use the check link or list recent runs for the PR branch:
+
+```bash
+gh run list --branch HEAD_REF --limit 20 --json databaseId,name,status,conclusion,headSha,url
+gh run view RUN_ID --log-failed
+```
+
+- state the failure cause before editing
+- fix the root cause, not symptoms
+- add focused tests when needed
 
 5. Verify locally, commit, and push:
 
 ```bash
-git add <files>
-git commit -m "fix: <descriptive message>"
+git add FILES
+git commit -m "fix: descriptive message"
 git push
 ```
 
 6. Start both monitors after every push:
 
 ```bash
-uv run <skill>/scripts/monitor_pr_checks.py [--pr NUMBER]
-uv run <skill>/scripts/monitor_pr_feedback.py [--pr NUMBER]
+gh pr checks NUMBER --watch --fail-fast --interval 30
+<skill>/scripts/monitor-pr-feedback.sh [--pr NUMBER]
 ```
 
-Run them as parallel background tasks. Feedback usually arrives before checks finish; when `monitor_pr_feedback.py` returns `FEEDBACK_NEEDS_ATTENTION`, fix that feedback immediately, verify, commit, push, and restart both monitors. When registered checks become terminal or only human gates remain, the feedback monitor performs its final fetch and returns `NO_ACTIONABLE_FEEDBACK` instead of waiting for its timeout.
+Run them as parallel background tasks.
 
-7. Handle monitor results:
+- If feedback returns first, stop the check watcher, fix the feedback, verify, commit, push, and restart both monitors.
+- If the check watcher returns first, consume the feedback monitor result. Stop it only after a final feedback fetch is clear.
+- If only human review or approval gates remain, the feedback monitor returns `NO_ACTIONABLE_FEEDBACK`. Stop the check watcher and report the gate.
+- If checks fail, inspect the current check JSON and failed logs before editing.
 
-| Result                          | Action                                                                                      |
-| ------------------------------- | ------------------------------------------------------------------------------------------- |
-| `FEEDBACK_NEEDS_ATTENTION`      | fix high/medium feedback, push, restart both monitors                                       |
-| `LOW_PRIORITY_FEEDBACK`         | ask user which suggestions to address                                                       |
-| `CHECKS_DONE_WITH_FAILURES`     | fetch failed checks/logs, fix, push, restart both monitors                                  |
-| `ALL_CHECKS_PASSED`             | consume the feedback monitor result; run a final feedback fetch only if that monitor failed |
-| `NO_ACTIONABLE_FEEDBACK`        | success if checks passed                                                                    |
-| `CHECKS_BLOCKED_BY_REVIEW_GATE` | stop and report human review/approval gate                                                  |
-| `NO_CHECKS_REGISTERED`          | stop and report no CI registered                                                            |
-| `DRAFT_PR_WITH_NO_CHECKS`       | stop and report draft/no-check state                                                        |
-| `FEEDBACK_MONITOR_ERROR`        | fall back to `fetch_pr_feedback.py`; ask user if still unclear                              |
+7. Handle results:
+
+| Result or state              | Action                                                                              |
+| ---------------------------- | ----------------------------------------------------------------------------------- |
+| `FEEDBACK_NEEDS_ATTENTION`   | fix high or medium feedback, push, restart both monitors                            |
+| `LOW_PRIORITY_FEEDBACK`      | ask the user which suggestions to address                                           |
+| failed check                 | fetch failed logs, fix, push, restart both monitors                                 |
+| all actionable checks passed | consume the feedback monitor result and perform a final fetch if the monitor failed |
+| `NO_ACTIONABLE_FEEDBACK`     | succeed if actionable checks passed                                                 |
+| only human gates remain      | stop the check watcher and report the review or approval gate                       |
+| no checks registered         | stop and report that no CI is registered                                            |
+| draft PR with no checks      | stop and report the draft and no-check state                                        |
+| `FEEDBACK_MONITOR_ERROR`     | run `fetch-pr-feedback.sh` once and ask the user if the result is still unclear     |
+
+8. Reply to addressed review threads only when useful and after confirmation:
+
+```bash
+<skill>/scripts/reply-to-feedback.sh THREAD_ID BODY_FILE
+```
+
+Use the GraphQL node id from the feedback item's `thread_id`, such as `PRRT_...`. The wrapper posts one reply and returns its thread id, created comment id, and status as JSON.
 
 ## Exit Conditions
 
 | Exit     | Conditions                                                                      |
 | -------- | ------------------------------------------------------------------------------- |
-| Success  | actionable checks passed and feedback monitor reports no actionable feedback    |
+| Success  | actionable checks passed and the final feedback fetch is clear                  |
 | Ask user | low-priority choice, unclear feedback, same failure twice, infrastructure issue |
 | Stop     | no PR, branch needs rebase, no checks, draft no-checks, only human gates remain |
 
-## Fallback
+## Failure Handling
 
-If scripts fail, use `gh` directly:
-
-- `gh pr view --json number,url,headRefName,isDraft,reviewDecision`
-- `gh pr checks --json name,state,bucket,description,link`
-- `gh run view <run-id> --log-failed`
-- `gh api repos/{owner}/{repo}/pulls/{number}/comments`
+If a wrapper fails, inspect its stderr and stop rather than falling back to unrestricted `gh api`. Standard read-only `gh pr` and `gh run` commands remain valid fallbacks for checks and logs.
