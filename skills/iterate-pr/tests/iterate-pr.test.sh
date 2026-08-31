@@ -16,7 +16,16 @@ printf '%q ' "$@" >> "$GH_CALL_LOG"
 printf '\n' >> "$GH_CALL_LOG"
 
 if [[ "$1" == "api" && "$2" == "graphql" ]]; then
-  cat "$GH_API_RESPONSE"
+  call_count=$(cat "$GH_API_CALL_COUNT_FILE")
+  call_count=$((call_count + 1))
+  printf '%s\n' "$call_count" > "$GH_API_CALL_COUNT_FILE"
+
+  sequenced_response="$GH_API_RESPONSES_DIR/$call_count.json"
+  if [[ -f "$sequenced_response" ]]; then
+    cat "$sequenced_response"
+  else
+    cat "$GH_API_RESPONSE"
+  fi
   exit 0
 fi
 
@@ -38,8 +47,12 @@ chmod +x "$tmp_dir/bin/gh"
 export PATH="$tmp_dir/bin:$PATH"
 export GH_CALL_LOG="$tmp_dir/gh-calls.log"
 export GH_API_RESPONSE="$tmp_dir/api-response.json"
+export GH_API_RESPONSES_DIR="$tmp_dir/api-responses"
+export GH_API_CALL_COUNT_FILE="$tmp_dir/api-call-count"
 export GH_CHECKS_RESPONSE="$tmp_dir/checks-response.json"
+mkdir -p "$GH_API_RESPONSES_DIR"
 : > "$GH_CALL_LOG"
+printf '0\n' > "$GH_API_CALL_COUNT_FILE"
 
 assert_jq() {
   local expression=$1
@@ -165,23 +178,71 @@ monitor_output="$tmp_dir/monitor-output.txt"
 "$scripts_dir/monitor-pr-feedback.sh" --pr 123 --poll-seconds 0 --timeout-seconds 1 > "$monitor_output"
 grep -q '^NO_ACTIONABLE_FEEDBACK$' "$monitor_output"
 
-reply_body="$tmp_dir/reply.md"
-printf 'Fixed the edge case.\n\nAdded a regression test.\n' > "$reply_body"
-cat > "$GH_API_RESPONSE" <<'JSON'
+medium_reply_body="$tmp_dir/medium-reply.md"
+high_reply_body="$tmp_dir/high-reply.md"
+printf 'Fixed the edge case.\n\nAdded a regression test.\n' > "$medium_reply_body"
+printf 'Switched to the supported API.\n' > "$high_reply_body"
+printf '0\n' > "$GH_API_CALL_COUNT_FILE"
+: > "$GH_CALL_LOG"
+cat > "$GH_API_RESPONSES_DIR/1.json" <<'JSON'
 {
   "data": {
-    "addPullRequestReviewThreadReply": {
-      "comment": {"id": "PRRC_reply"}
+    "r0": {
+      "comment": {
+        "id": "PRRC_medium_reply",
+        "state": "PENDING",
+        "pullRequestReview": {
+          "id": "PRR_pending",
+          "state": "PENDING"
+        }
+      }
+    },
+    "r1": {
+      "comment": {
+        "id": "PRRC_high_reply",
+        "state": "PENDING",
+        "pullRequestReview": {
+          "id": "PRR_pending",
+          "state": "PENDING"
+        }
+      }
+    }
+  }
+}
+JSON
+cat > "$GH_API_RESPONSES_DIR/2.json" <<'JSON'
+{
+  "data": {
+    "submitPullRequestReview": {
+      "pullRequestReview": {
+        "id": "PRR_pending",
+        "state": "COMMENTED"
+      }
     }
   }
 }
 JSON
 
 reply_output="$tmp_dir/reply-output.json"
-"$scripts_dir/reply-to-feedback.sh" PRRT_medium "$reply_body" > "$reply_output"
-assert_jq '. == {"thread_id":"PRRT_medium","comment_id":"PRRC_reply","status":"ok"}' "$reply_output"
-grep -q 'addPullRequestReviewThreadReply' "$GH_CALL_LOG"
-grep -q 'threadId=PRRT_medium' "$GH_CALL_LOG"
-grep -q "body=@$reply_body" "$GH_CALL_LOG"
+"$scripts_dir/reply-to-feedback.sh" \
+  --reply PRRT_medium "$medium_reply_body" \
+  --reply PRRT_high "$high_reply_body" > "$reply_output"
+assert_jq '. == {
+  "replied": 2,
+  "operations": [
+    {"thread_id":"PRRT_medium","comment_id":"PRRC_medium_reply","review_id":"PRR_pending","review_state":"COMMENTED","status":"ok"},
+    {"thread_id":"PRRT_high","comment_id":"PRRC_high_reply","review_id":"PRR_pending","review_state":"COMMENTED","status":"ok"}
+  ],
+  "status": "ok"
+}' "$reply_output"
+[[ $(grep -c 'api graphql' "$GH_CALL_LOG") -eq 2 ]]
+grep -q 'r0: addPullRequestReviewThreadReply' "$GH_CALL_LOG"
+grep -q 'r1: addPullRequestReviewThreadReply' "$GH_CALL_LOG"
+grep -q 'submitPullRequestReview' "$GH_CALL_LOG"
+grep -q 'threadId0=PRRT_medium' "$GH_CALL_LOG"
+grep -q 'threadId1=PRRT_high' "$GH_CALL_LOG"
+grep -q 'reviewId=PRR_pending' "$GH_CALL_LOG"
+grep -q "body0=@$medium_reply_body" "$GH_CALL_LOG"
+grep -q "body1=@$high_reply_body" "$GH_CALL_LOG"
 
 printf 'iterate-pr shell tests passed\n'

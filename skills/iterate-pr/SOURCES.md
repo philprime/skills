@@ -2,6 +2,13 @@
 
 ## Iteration Changelog
 
+### Submit review-thread replies
+
+- **Evidence:** GitHub can create a review-thread reply in a pending review, especially when multiple reply mutations race.
+- **Negative example:** The reply wrapper returned success for a created comment ID while the reply remained unpublished in a pending review.
+- **Behavior delta:** The wrapper restores the previous helper's single-request batching, reads each created comment's review state, submits pending reviews with a `COMMENT` event, and reports the final state.
+- **Preserved behavior:** Replies still require explicit confirmation and use a fixed-purpose wrapper with body files.
+
 ### Narrow GitHub API wrappers
 
 - **Evidence:** Local permission rules need to distinguish fixed read and reply operations from unrestricted `gh api` access.
