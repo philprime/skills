@@ -1,6 +1,7 @@
 .DEFAULT_GOAL := help
 
-REQUIRED_TOOLS := dprint pre-commit
+REQUIRED_TOOLS := dprint jq pre-commit uvx
+SKILL ?=
 
 # ============================================================================
 # SETUP & INSTALLATION
@@ -63,10 +64,32 @@ skills:
 # TESTING & QUALITY ASSURANCE
 # ============================================================================
 
-## Format repository files
+## Validate all skills, or one skill with SKILL=<name>
+.PHONY: validate
+validate:
+	@if [ -n "$(SKILL)" ]; then \
+		pre-commit run validate-skills --files "skills/$(SKILL)/SKILL.md"; \
+	fi
+
+## Run all skill-specific tests
+.PHONY: test
+test:
+	@set -e; for test in skills/*/tests/*.test.sh; do \
+		[ -e "$$test" ] || continue; \
+		"$$test"; \
+	done
+
+## Run all pre-commit checks on all files
+.PHONY: lint
+lint:
+	pre-commit run --all-files
+
+## Format all supported files
 .PHONY: format
 format:
-	dprint fmt
+	pre-commit run format-json --all-files
+	pre-commit run format-markdown --all-files
+	pre-commit run format-yaml --all-files
 
 # ============================================================================
 # HELP & DOCUMENTATION

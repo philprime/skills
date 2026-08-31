@@ -1,7 +1,6 @@
 ---
 name: create-branch
 description: Create a focused git branch with a conventional type/name. Use when asked to create a branch, new branch, start a branch, make a branch, switch to a new branch, or begin work from the default branch.
-argument-hint: "[optional work description]"
 ---
 
 # Create Branch

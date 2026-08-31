@@ -41,6 +41,20 @@ It handles source coverage, authoring, registration, and validation.
 - Keep SKILL.md under 500 lines; move reference material to `references/`
 - Keep runtime instructions in `SKILL.md`; put intent, source/evidence model, evaluation, limitations, and maintenance rules in `SPEC.md`
 
+## Skill Validation
+
+Use Makefile targets for common commands:
+
+```bash
+make validate
+make validate SKILL=<skill-name>
+make test
+make lint
+make format
+```
+
+`make validate` runs the demonstration `skills-ref` validator ephemerally. Also run skill-specific tests.
+
 ## References
 
 - Repository overview: `README.md`

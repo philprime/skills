@@ -1,4 +1,5 @@
 brew "dprint"
 brew "jq"
 brew "pre-commit"
+brew "uv"
 brew "yq"
