@@ -1,5 +1,5 @@
 version = 1
-agents = ["claude", "codex"]
+agents = ["claude", "codex", "cursor"]
 
 [trust]
 github_repos = ["getsentry/skills", "getsentry/dotagents"]
