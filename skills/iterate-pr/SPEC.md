@@ -2,9 +2,9 @@
 
 ## Intent
 
-The `iterate-pr` skill drives a pull request through actionable CI failures and actionable review feedback until the work is locally fixed, pushed, and rechecked.
+The `iterate-pr` skill drives a pull request through actionable review feedback first, then actionable CI failures, until the work is locally fixed, pushed, and rechecked.
 
-Its purpose is CI and feedback iteration, not merge readiness. It starts check and feedback monitors in parallel after every push so feedback can be fixed as soon as it arrives instead of waiting for CI to finish first.
+Its purpose is feedback and CI iteration, not merge readiness. It fetches current feedback before examining CI, then starts feedback and check monitors in parallel after every push. When feedback arrives before CI finishes, the skill addresses it immediately instead of waiting for CI.
 
 ## Scope
 
@@ -39,7 +39,7 @@ Out of scope:
 
 - Required first actions: resolve the current PR, read `isDraft` and `reviewDecision`, fetch current review feedback, and fetch current CI state before editing.
 - Required outputs: concise progress updates, commits and pushes when fixes are made, and a final state that distinguishes passing CI from non-actionable review/draft/approval gates.
-- Non-negotiable constraints: investigate failures before editing, verify locally before pushing, do not push known-broken fixes, run check and feedback monitors in parallel after each push, restart both monitors after each pushed fix, stop the feedback monitor after a final clear fetch when registered actionable checks finish, do not wait for human approval, and do not treat draft PRs with no checks as pending forever.
+- Non-negotiable constraints: handle available actionable feedback before CI failures, investigate failures before editing, verify locally before pushing, do not push known-broken fixes, run feedback and check monitors in parallel after each push, process new feedback without waiting for CI, restart both monitors after each pushed fix, stop the feedback monitor after a final clear fetch when registered actionable checks finish, do not wait for human approval, and do not treat draft PRs with no checks as pending forever.
 - Permission boundary: use direct `gh pr` and `gh run` commands for their read-only operations. Put every required GraphQL operation behind a fixed-purpose wrapper so allow-listing a workflow never requires allow-listing generic `gh api` access.
 - External writes: require explicit confirmation before invoking the review-thread reply wrapper. The wrapper must submit a review GitHub leaves pending and report its final non-pending state.
 - Expected bundled files loaded at runtime: `SKILL.md` and, when needed, fixed-operation shell wrappers under `scripts/`.

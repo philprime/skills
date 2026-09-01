@@ -1,11 +1,11 @@
 ---
 name: iterate-pr
-description: Iterate on an existing pull request until actionable feedback is handled and actionable checks pass. Use for PR CI failures, review feedback, green-check loops, or after pushing fixes; run checks and feedback monitors in parallel.
+description: Iterates on an existing pull request by addressing actionable review feedback first, then CI failures, until feedback is handled and actionable checks pass. Use for review feedback, PR CI failures, green-check loops, or after pushing fixes. Monitors feedback and checks in parallel after each push, prioritizing feedback as soon as it appears.
 ---
 
 # Iterate PR
 
-Fix actionable PR feedback and CI failures. Do not wait on human approval, draft readiness, merge gates, or informational bots.
+Prioritize actionable PR feedback, then fix CI failures. Do not wait for CI to finish before handling available feedback. Do not wait on human approval, draft readiness, merge gates, or informational bots.
 
 Require authenticated `gh` and `jq`. Run from the target repository root.
 
@@ -82,14 +82,14 @@ git commit -m "fix: descriptive message"
 git push
 ```
 
-6. Start both monitors after every push:
+6. After every push, monitor feedback and checks in parallel while prioritizing feedback:
 
 ```bash
-gh pr checks NUMBER --watch --fail-fast --interval 30
 <skill>/scripts/monitor-pr-feedback.sh [--pr NUMBER]
+gh pr checks NUMBER --watch --fail-fast --interval 30
 ```
 
-Run them as parallel background tasks.
+Run them as parallel background tasks. Handle feedback as soon as it appears instead of waiting for CI to finish.
 
 - If feedback returns first, stop the check watcher, fix the feedback, verify, commit, push, and restart both monitors.
 - If the check watcher returns first, consume the feedback monitor result. Stop it only after a final feedback fetch is clear.
