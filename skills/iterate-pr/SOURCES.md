@@ -2,6 +2,13 @@
 
 ## Iteration Changelog
 
+### Resolve addressed review threads
+
+- **Evidence:** Human-verified regression from PR iteration where the requested reply was published but the thread remained unresolved.
+- **Negative example:** The wrapper reported a successful reply, and the agent implied completion even though no `resolveReviewThread` mutation existed.
+- **Behavior delta:** The wrapper now accepts explicit `--resolve THREAD_ID` operations, supports resolve-only calls, batches confirmed resolutions after replies are published, and verifies `isResolved: true`.
+- **Preserved behavior:** All GitHub writes remain fixed-purpose operations that require explicit confirmation, resolution requires a separate explicit user request, and reply bodies still come from files.
+
 ### Submit review-thread replies
 
 - **Evidence:** GitHub can create a review-thread reply in a pending review, especially when multiple reply mutations race.

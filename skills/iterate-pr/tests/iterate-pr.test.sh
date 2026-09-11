@@ -222,27 +222,79 @@ cat > "$GH_API_RESPONSES_DIR/2.json" <<'JSON'
   }
 }
 JSON
+cat > "$GH_API_RESPONSES_DIR/3.json" <<'JSON'
+{
+  "data": {
+    "x0": {
+      "thread": {
+        "id": "PRRT_medium",
+        "isResolved": true
+      }
+    }
+  }
+}
+JSON
 
 reply_output="$tmp_dir/reply-output.json"
 "$scripts_dir/reply-to-feedback.sh" \
   --reply PRRT_medium "$medium_reply_body" \
-  --reply PRRT_high "$high_reply_body" > "$reply_output"
+  --reply PRRT_high "$high_reply_body" \
+  --resolve PRRT_medium > "$reply_output"
 assert_jq '. == {
   "replied": 2,
+  "resolved": 1,
   "operations": [
     {"thread_id":"PRRT_medium","comment_id":"PRRC_medium_reply","review_id":"PRR_pending","review_state":"COMMENTED","status":"ok"},
     {"thread_id":"PRRT_high","comment_id":"PRRC_high_reply","review_id":"PRR_pending","review_state":"COMMENTED","status":"ok"}
   ],
+  "resolutions": [
+    {"thread_id":"PRRT_medium","is_resolved":true,"status":"ok"}
+  ],
   "status": "ok"
 }' "$reply_output"
-[[ $(grep -c 'api graphql' "$GH_CALL_LOG") -eq 2 ]]
+[[ $(grep -c 'api graphql' "$GH_CALL_LOG") -eq 3 ]]
 grep -q 'r0: addPullRequestReviewThreadReply' "$GH_CALL_LOG"
 grep -q 'r1: addPullRequestReviewThreadReply' "$GH_CALL_LOG"
 grep -q 'submitPullRequestReview' "$GH_CALL_LOG"
+grep -q 'x0: resolveReviewThread' "$GH_CALL_LOG"
 grep -q 'threadId0=PRRT_medium' "$GH_CALL_LOG"
 grep -q 'threadId1=PRRT_high' "$GH_CALL_LOG"
+grep -q 'resolveThreadId0=PRRT_medium' "$GH_CALL_LOG"
 grep -q 'reviewId=PRR_pending' "$GH_CALL_LOG"
 grep -q "body0=@$medium_reply_body" "$GH_CALL_LOG"
 grep -q "body1=@$high_reply_body" "$GH_CALL_LOG"
+
+printf '0\n' > "$GH_API_CALL_COUNT_FILE"
+: > "$GH_CALL_LOG"
+cat > "$GH_API_RESPONSES_DIR/1.json" <<'JSON'
+{
+  "data": {
+    "x0": {
+      "thread": {
+        "id": "PRRT_medium",
+        "isResolved": true
+      }
+    }
+  }
+}
+JSON
+
+resolve_output="$tmp_dir/resolve-output.json"
+"$scripts_dir/reply-to-feedback.sh" --resolve PRRT_medium > "$resolve_output"
+assert_jq '. == {
+  "replied": 0,
+  "resolved": 1,
+  "operations": [],
+  "resolutions": [
+    {"thread_id":"PRRT_medium","is_resolved":true,"status":"ok"}
+  ],
+  "status": "ok"
+}' "$resolve_output"
+[[ $(grep -c 'api graphql' "$GH_CALL_LOG") -eq 1 ]]
+grep -q 'x0: resolveReviewThread' "$GH_CALL_LOG"
+if grep -q 'addPullRequestReviewThreadReply' "$GH_CALL_LOG"; then
+  printf 'Resolve-only operation unexpectedly created a reply\n' >&2
+  exit 1
+fi
 
 printf 'iterate-pr shell tests passed\n'

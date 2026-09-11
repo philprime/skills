@@ -15,16 +15,16 @@ Use standard read-only `gh` commands directly. Use the fixed-operation wrappers 
 
 Always invoke wrappers by their absolute paths. Substitute the absolute skill path for `<skill>` below.
 
-| Command                                                          | Operation                                                                                  |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `scripts/fetch-pr-feedback.sh`                                   | fixed read-only GraphQL query that fetches and categorizes feedback                        |
-| `scripts/monitor-pr-feedback.sh`                                 | polls the fixed feedback query and exits when feedback appears or actionable checks finish |
-| `scripts/reply-to-feedback.sh --reply THREAD_ID BODY_FILE [...]` | batches review-thread replies and submits reviews GitHub leaves pending                    |
-| `gh pr checks NUMBER --json ...`                                 | reads checks                                                                               |
-| `gh pr checks NUMBER --watch --fail-fast`                        | watches checks                                                                             |
-| `gh run view RUN_ID --log-failed`                                | reads failed logs                                                                          |
+| Command                                                                                  | Operation                                                                                  |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `scripts/fetch-pr-feedback.sh`                                                           | fixed read-only GraphQL query that fetches and categorizes feedback                        |
+| `scripts/monitor-pr-feedback.sh`                                                         | polls the fixed feedback query and exits when feedback appears or actionable checks finish |
+| `scripts/reply-to-feedback.sh [--reply THREAD_ID BODY_FILE] [--resolve THREAD_ID] [...]` | batches review-thread replies, submits pending reviews, and resolves confirmed threads     |
+| `gh pr checks NUMBER --json ...`                                                         | reads checks                                                                               |
+| `gh pr checks NUMBER --watch --fail-fast`                                                | watches checks                                                                             |
+| `gh run view RUN_ID --log-failed`                                                        | reads failed logs                                                                          |
 
-`reply-to-feedback.sh` is externally visible and writes to GitHub. Get explicit user confirmation immediately before invoking it. Put each reply in a file and pass every confirmed reply to one wrapper invocation. Do not pass Markdown inline through the shell. Never launch concurrent reply wrappers because GitHub associates replies with mutable review state.
+`reply-to-feedback.sh` is externally visible and writes to GitHub. Get explicit user confirmation immediately before invoking it. Treat replying and resolving as separate permissions: permission to reply does not authorize resolution. Include `--resolve THREAD_ID` only when the user explicitly asks to resolve that thread. Put each reply in a file and pass every authorized operation to one wrapper invocation. Do not pass Markdown inline through the shell. Never launch concurrent wrappers because GitHub associates replies with mutable review state.
 
 Feedback monitor markers:
 
@@ -110,15 +110,16 @@ Run them as parallel background tasks. Handle feedback as soon as it appears ins
 | draft PR with no checks      | stop and report the draft and no-check state                                        |
 | `FEEDBACK_MONITOR_ERROR`     | run `fetch-pr-feedback.sh` once and ask the user if the result is still unclear     |
 
-8. Reply to addressed review threads only when useful and after confirmation:
+8. Reply to addressed review threads only when useful and after confirmation. Resolve a thread only when the user explicitly asks for resolution:
 
 ```bash
 <skill>/scripts/reply-to-feedback.sh \
   --reply THREAD_ID BODY_FILE \
+  --resolve THREAD_ID \
   --reply ANOTHER_THREAD_ID ANOTHER_BODY_FILE
 ```
 
-Use each feedback item's GraphQL `thread_id`, such as `PRRT_...`. The wrapper batches all replies in one GraphQL mutation, submits any review GitHub created as pending, and returns each thread id, comment id, review id, final review state, and status as JSON.
+Use each feedback item's GraphQL `thread_id`, such as `PRRT_...`. Never infer resolution from a request to reply or address feedback. Use `--resolve THREAD_ID` only for threads the user explicitly requested to resolve, including when a reply already exists. The wrapper batches replies, submits any review GitHub created as pending, then batches explicitly requested resolutions. It returns reply and resolution counts, operation details, final review states, and status as JSON.
 
 ## Exit Conditions
 
